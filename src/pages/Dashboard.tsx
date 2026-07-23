@@ -36,7 +36,7 @@ export function Dashboard() {
   const grouped = useMemo(() => {
     const groups = new Map<string, typeof filtered>()
     for (const insp of filtered) {
-      const key = insp.inspectionDate || 'Unknown Date'
+      const key = insp.dispatchDate || 'Unknown Date'
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(insp)
     }

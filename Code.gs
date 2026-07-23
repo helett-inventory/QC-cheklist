@@ -30,12 +30,19 @@ function getSheet_() {
 }
 
 // inspectionDate and dispatchDate are meant to be plain calendar dates
-// ("2026-07-23"), never a timestamp. Sheets auto-converts date-looking
-// strings into a real Date value on write, which (a) shows a time component
-// in the sheet and (b) shifts the date by a day on read depending on the
-// spreadsheet's timezone vs UTC when serialized to JSON. formatDateOnly_
-// normalizes any such value (old or new) back to a clean "yyyy-MM-dd"
-// string, and inspectionToRow_ force-stores it as text going forward.
+// ("2026-07-23"), shown in the sheet as a readable Date-formatted cell
+// ("Jul 23, 2026") — that display is intentional, so we don't fight it by
+// forcing the column to Plain Text. Instead we remove all ambiguity from the
+// write itself: rather than writing a raw string and letting Sheets guess
+// how to parse it (which depends on spreadsheet locale and can misfire),
+// parseDateOnly_ builds an explicit Date object at local midnight for the
+// exact intended calendar day. Sheets stores exactly that value and displays
+// it with the column's existing Date format. On read, formatDateOnly_
+// converts it back to a "yyyy-MM-dd" string using the same timezone
+// (Session.getScriptTimeZone(), which matches the spreadsheet's timezone),
+// so the round trip is exact with no drift. It also self-heals any leftover
+// rows from an earlier, buggier version of this file that could corrupt the
+// value with a stray leading character.
 var DATE_ONLY_FIELDS = ['inspectionDate', 'dispatchDate']
 
 function formatDateOnly_(value) {
@@ -43,8 +50,17 @@ function formatDateOnly_(value) {
     return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd')
   }
   if (typeof value === 'string') {
-    var match = value.match(/^(\d{4}-\d{2}-\d{2})/)
+    var match = value.match(/(\d{4}-\d{2}-\d{2})/)
     return match ? match[1] : value
+  }
+  return value
+}
+
+function parseDateOnly_(value) {
+  if (value instanceof Date) return value
+  if (typeof value === 'string') {
+    var match = value.match(/(\d{4})-(\d{2})-(\d{2})/)
+    if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
   }
   return value
 }
@@ -66,7 +82,7 @@ function inspectionToRow_(insp) {
   return FIELDS.map(function (f) {
     var v = insp[f] !== undefined ? insp[f] : ''
     if (DATE_ONLY_FIELDS.indexOf(f) !== -1 && v) {
-      return "'" + formatDateOnly_(v)
+      return parseDateOnly_(v)
     }
     return v
   })
@@ -108,7 +124,17 @@ function persistSignatures_(insp) {
   return insp
 }
 
+// doPost can't be tested with the ▶ Run button in this editor — there's no
+// real HTTP request for Apps Script to hand it, so `e` comes back undefined.
+// To actually test it: Deploy → Manage deployments → copy the Web App URL,
+// then send it a real POST, e.g. from a terminal:
+//   curl -X POST "<your web app URL>" -H "Content-Type: text/plain" -d "{\"action\":\"list\"}"
+// Or just use the running app (with VITE_API_URL pointed at that URL) and
+// watch it work from the Dashboard/QC form.
 function doPost(e) {
+  if (!e || !e.postData) {
+    return jsonResponse_({ error: 'No POST data received. Run this via the deployed Web App URL, not the editor Run button.' }, 400)
+  }
   var body = JSON.parse(e.postData.contents)
   var action = body.action
   var sheet = getSheet_()

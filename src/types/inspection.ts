@@ -1,4 +1,6 @@
-export type YesNo = 'Y' | 'N'
+// '' represents "not yet answered" — these fields have no default selection
+// on a new inspection, forcing the inspector to actively pick one.
+export type YesNo = 'Y' | 'N' | ''
 
 export interface Inspection {
   id: string
@@ -11,9 +13,9 @@ export interface Inspection {
   qcQty: number
   acceptedQty: number
   rejectedQty: number
-  modelDispatched: 'ATS' | 'Drop In'
-  productCondition: 'Good' | 'Bad'
-  packagingQuality: 'Good' | 'Bad'
+  modelDispatched: 'ATS' | 'Drop In' | ''
+  productCondition: 'Good' | 'Bad' | ''
+  packagingQuality: 'Good' | 'Bad' | ''
   labelBarcode: YesNo
   accessoriesIncluded: YesNo
   properSealing: YesNo
@@ -23,7 +25,7 @@ export interface Inspection {
   serialNumberPresent: YesNo
   shippingLabelPresent: YesNo
   fullRemarks: string
-  overallResult: 'Good' | 'Bad' | 'Satisfactory'
+  overallResult: 'Good' | 'Bad' | 'Satisfactory' | ''
   qcRemarks: string
   inspectorName: string
   qcSignatureUrl: string
