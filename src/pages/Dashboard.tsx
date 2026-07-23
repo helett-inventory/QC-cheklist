@@ -116,12 +116,12 @@ export function Dashboard() {
         type="button"
         aria-label="New Inspection"
         onClick={() => navigate('/inspection/new')}
-        className="fixed bottom-20 right-5 w-14 h-14 rounded-full bg-teal-600 text-white text-3xl leading-none shadow-lg flex items-center justify-center active:bg-teal-700"
+        className="fixed z-30 bottom-20 right-5 w-14 h-14 rounded-full bg-teal-600 text-white text-3xl leading-none shadow-lg flex items-center justify-center active:bg-teal-700"
       >
         +
       </button>
 
-      <nav className="fixed bottom-0 inset-x-0 h-14 bg-teal-800 flex items-center justify-center text-white">
+      <nav className="fixed z-30 bottom-0 inset-x-0 h-14 bg-teal-800 flex items-center justify-center text-white">
         <button
           type="button"
           onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}

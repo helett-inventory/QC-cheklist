@@ -14,7 +14,8 @@
       "Bash(powershell -Command \"Stop-Process -Id 9444,18724 -Force\")",
       "Bash(powershell -Command \"Stop-Process -Id 18816,5876 -Force\")",
       "Bash(powershell -Command \"Stop-Process -Id 9364,20228 -Force\")",
-      "Bash(powershell -Command \"Stop-Process -Id 19184,5212 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 19184,5212 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 5404,20688 -Force\")"
     ]
   }
 }

@@ -324,19 +324,7 @@ export function QCForm() {
   function validate(): boolean {
     const errs: Record<string, string> = {}
     if (!form.shipmentId.trim()) errs.shipmentId = 'Shipment ID is required'
-    if (!form.sku.trim()) errs.sku = 'SKU is required'
     if (!form.productName.trim()) errs.productName = 'Product name is required'
-    if (!form.modelDispatched) errs.modelDispatched = 'Please select a model of dispatch'
-    if (!form.productCondition) errs.productCondition = 'Please select a product condition'
-    if (!form.packagingQuality) errs.packagingQuality = 'Please select a packaging quality'
-    if (!form.labelBarcode) errs.labelBarcode = 'Please select Yes or No'
-    if (!form.accessoriesIncluded) errs.accessoriesIncluded = 'Please select Yes or No'
-    if (!form.properSealing) errs.properSealing = 'Please select Yes or No'
-    if (!form.fnskuPresent) errs.fnskuPresent = 'Please select Yes or No'
-    if (!form.mrpPresent) errs.mrpPresent = 'Please select Yes or No'
-    if (!form.serialNumberPresent) errs.serialNumberPresent = 'Please select Yes or No'
-    if (!form.shippingLabelPresent) errs.shippingLabelPresent = 'Please select Yes or No'
-    if (!form.overallResult) errs.overallResult = 'Please select an overall result'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -431,7 +419,6 @@ export function QCForm() {
             placeholder="Auto-filled from Product Name"
             className="w-full h-11 px-3 rounded-md border border-gray-200 bg-gray-100 text-gray-500 text-sm"
           />
-          {errors.sku && <p className="text-red-600 text-xs mt-1">{errors.sku}</p>}
         </Field>
 
         <Field label="Quantity (Created)">
@@ -453,7 +440,6 @@ export function QCForm() {
             onChange={(v) => set('modelDispatched', v)}
             disabled={readOnly}
           />
-          {errors.modelDispatched && <p className="text-red-600 text-xs mt-1">{errors.modelDispatched}</p>}
         </Field>
 
         <Field label="Product Condition">
@@ -464,7 +450,6 @@ export function QCForm() {
             disabled={readOnly}
             colors={{ Good: 'bg-green-600 text-white border-green-600', Bad: 'bg-red-600 text-white border-red-600' }}
           />
-          {errors.productCondition && <p className="text-red-600 text-xs mt-1">{errors.productCondition}</p>}
         </Field>
 
         <Field label="Packaging Quality">
@@ -475,12 +460,10 @@ export function QCForm() {
             disabled={readOnly}
             colors={{ Good: 'bg-green-600 text-white border-green-600', Bad: 'bg-red-600 text-white border-red-600' }}
           />
-          {errors.packagingQuality && <p className="text-red-600 text-xs mt-1">{errors.packagingQuality}</p>}
         </Field>
 
         <Field label="Label/Barcode">
           <YesNoToggle value={form.labelBarcode} onChange={(v) => set('labelBarcode', v)} disabled={readOnly} />
-          {errors.labelBarcode && <p className="text-red-600 text-xs mt-1">{errors.labelBarcode}</p>}
         </Field>
 
         <Field label="Accessories Included">
@@ -489,12 +472,10 @@ export function QCForm() {
             onChange={(v) => set('accessoriesIncluded', v)}
             disabled={readOnly}
           />
-          {errors.accessoriesIncluded && <p className="text-red-600 text-xs mt-1">{errors.accessoriesIncluded}</p>}
         </Field>
 
         <Field label="Proper Sealing">
           <YesNoToggle value={form.properSealing} onChange={(v) => set('properSealing', v)} disabled={readOnly} />
-          {errors.properSealing && <p className="text-red-600 text-xs mt-1">{errors.properSealing}</p>}
         </Field>
 
         <Field label="Full Photo">
@@ -513,12 +494,10 @@ export function QCForm() {
 
         <Field label="FNSKU Present">
           <YesNoToggle value={form.fnskuPresent} onChange={(v) => set('fnskuPresent', v)} disabled={readOnly} />
-          {errors.fnskuPresent && <p className="text-red-600 text-xs mt-1">{errors.fnskuPresent}</p>}
         </Field>
 
         <Field label="MRP Present">
           <YesNoToggle value={form.mrpPresent} onChange={(v) => set('mrpPresent', v)} disabled={readOnly} />
-          {errors.mrpPresent && <p className="text-red-600 text-xs mt-1">{errors.mrpPresent}</p>}
         </Field>
 
         <Field label="Serial Number Present">
@@ -527,7 +506,6 @@ export function QCForm() {
             onChange={(v) => set('serialNumberPresent', v)}
             disabled={readOnly}
           />
-          {errors.serialNumberPresent && <p className="text-red-600 text-xs mt-1">{errors.serialNumberPresent}</p>}
         </Field>
 
         <Field label="Shipping Label Present">
@@ -536,9 +514,6 @@ export function QCForm() {
             onChange={(v) => set('shippingLabelPresent', v)}
             disabled={readOnly}
           />
-          {errors.shippingLabelPresent && (
-            <p className="text-red-600 text-xs mt-1">{errors.shippingLabelPresent}</p>
-          )}
         </Field>
 
         <Field label="Full Remarks">
@@ -563,7 +538,6 @@ export function QCForm() {
               Satisfactory: 'bg-yellow-500 text-white border-yellow-500'
             }}
           />
-          {errors.overallResult && <p className="text-red-600 text-xs mt-1">{errors.overallResult}</p>}
         </Field>
 
         <Field label="QC Remarks">
