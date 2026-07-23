@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { Inspection, YesNo } from '../types/inspection'
 import { createInspection, getInspection, updateInspection } from '../services/api'
 import { SignaturePad } from '../components/SignaturePad'
+import { SearchableSelect } from '../components/SearchableSelect'
 import { PRODUCTS } from '../data/products'
 
 // To edit the names offered in the "Dispatch Confirmed By" dropdown, edit this list.
@@ -207,16 +208,6 @@ function InspectorNamesField({
   }
 
   function handleSelect(index: number, val: string) {
-    if (val === '__add__') {
-      const name = window.prompt('Enter new inspector name')
-      if (name && name.trim()) {
-        onAddOption(name.trim())
-        const next = [...rows]
-        next[index] = name.trim()
-        commit(next)
-      }
-      return
-    }
     const next = [...rows]
     next[index] = val
     commit(next)
@@ -235,20 +226,16 @@ function InspectorNamesField({
     <div className="space-y-2">
       {rows.map((row, index) => (
         <div key={index} className="flex gap-2">
-          <select
-            disabled={disabled}
-            value={row}
-            onChange={(e) => handleSelect(index, e.target.value)}
-            className="flex-1 h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
-          >
-            <option value="">Select...</option>
-            {options.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-            <option value="__add__">+ Add new inspector...</option>
-          </select>
+          <div className="flex-1">
+            <SearchableSelect
+              options={options}
+              value={row}
+              onChange={(v) => handleSelect(index, v)}
+              disabled={disabled}
+              onAddOption={onAddOption}
+              addLabel="+ Add new inspector..."
+            />
+          </div>
           {!disabled && rows.length > 1 && (
             <button
               type="button"
@@ -339,7 +326,6 @@ export function QCForm() {
     if (!form.shipmentId.trim()) errs.shipmentId = 'Shipment ID is required'
     if (!form.sku.trim()) errs.sku = 'SKU is required'
     if (!form.productName.trim()) errs.productName = 'Product name is required'
-    if (!form.inspectorName.trim()) errs.inspectorName = 'Inspector name is required'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -422,23 +408,17 @@ export function QCForm() {
         </Field>
 
         <Field label="Product Name">
-          <select
-            disabled={readOnly}
+          <SearchableSelect
+            options={PRODUCTS.map((p) => p.name)}
             value={form.productName}
-            onChange={(e) => {
-              const product = PRODUCTS.find((p) => p.name === e.target.value)
-              set('productName', e.target.value)
+            onChange={(name) => {
+              const product = PRODUCTS.find((p) => p.name === name)
+              set('productName', name)
               set('sku', product?.asin ?? '')
             }}
-            className="w-full h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
-          >
-            <option value="">Select product...</option>
-            {PRODUCTS.map((p) => (
-              <option key={p.name} value={p.name}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            placeholder="Select product..."
+            disabled={readOnly}
+          />
           {errors.productName && <p className="text-red-600 text-xs mt-1">{errors.productName}</p>}
         </Field>
 
@@ -603,19 +583,12 @@ export function QCForm() {
         </Field>
 
         <Field label="Dispatch Confirmed By">
-          <select
-            disabled={readOnly}
+          <SearchableSelect
+            options={DISPATCH_NAMES}
             value={form.dispatchConfirmedBy}
-            onChange={(e) => set('dispatchConfirmedBy', e.target.value)}
-            className="w-full h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
-          >
-            <option value="">Select...</option>
-            {DISPATCH_NAMES.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set('dispatchConfirmedBy', v)}
+            disabled={readOnly}
+          />
         </Field>
 
         <Field label="Dispatch Date">

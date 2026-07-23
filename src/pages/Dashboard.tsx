@@ -21,6 +21,7 @@ export function Dashboard() {
   const { inspections, loading, error, refetch } = useInspections()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const navigate = useNavigate()
 
   const filtered = useMemo(() => {
@@ -39,8 +40,10 @@ export function Dashboard() {
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(insp)
     }
-    return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]))
-  }, [filtered])
+    return [...groups.entries()].sort((a, b) =>
+      sortDir === 'desc' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0])
+    )
+  }, [filtered, sortDir])
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
@@ -118,11 +121,25 @@ export function Dashboard() {
         +
       </button>
 
-      <nav className="fixed bottom-0 inset-x-0 h-14 bg-teal-800 flex items-center justify-center gap-2 text-white">
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-        <span className="text-sm font-medium">Log Data</span>
+      <nav className="fixed bottom-0 inset-x-0 h-14 bg-teal-800 flex items-center justify-center text-white">
+        <button
+          type="button"
+          onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+          className="flex items-center gap-2 min-h-[44px] px-4"
+        >
+          {sortDir === 'desc' ? (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9M3 12h5m4 8V4m0 16l-4-4m4 4l4-4" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 20h13M3 16h9M3 12h5m4-8v16m0-16l-4 4m4-4l4 4" />
+            </svg>
+          )}
+          <span className="text-sm font-medium">
+            Sort: {sortDir === 'desc' ? 'Newest first' : 'Oldest first'}
+          </span>
+        </button>
       </nav>
     </div>
   )
