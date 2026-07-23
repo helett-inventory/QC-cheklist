@@ -9,7 +9,10 @@
       "Bash(npx vite *)",
       "Bash(python3 -c ' *)",
       "Bash(tasklist)",
-      "Bash(powershell -Command \"Stop-Process -Id 5848 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 5848 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 15732 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 9444,18724 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 18816,5876 -Force\")"
     ]
   }
 }
