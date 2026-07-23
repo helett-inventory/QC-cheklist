@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create *)",
+      "Bash(npm ping *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vite *)",
+      "Bash(python3 -c ' *)",
+      "Bash(tasklist)",
+      "Bash(powershell -Command \"Stop-Process -Id 5848 -Force\")"
+    ]
+  }
+}
