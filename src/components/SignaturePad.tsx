@@ -9,7 +9,12 @@ interface SignaturePadProps {
 export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
-  const [unlocked, setUnlocked] = useState(!!value)
+  const [hasContent, setHasContent] = useState(!!value)
+  // The pad only captures touch (blocking page scroll) while "active". Until
+  // then it behaves like normal scrollable content, so a scroll gesture that
+  // starts over the pad while flicking through the form doesn't get read as
+  // a stroke. Tapping expands it into drawing mode.
+  const [active, setActive] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -40,8 +45,8 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (readOnly) return
-    setUnlocked(true)
+    if (readOnly || !active) return
+    setHasContent(true)
     drawing.current = true
     const ctx = canvasRef.current?.getContext('2d')
     const pos = getPos(e)
@@ -51,7 +56,7 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (readOnly || !drawing.current) return
+    if (readOnly || !active || !drawing.current) return
     const ctx = canvasRef.current?.getContext('2d')
     const pos = getPos(e)
     ctx?.lineTo(pos.x, pos.y)
@@ -59,7 +64,7 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
   }
 
   function handlePointerUp() {
-    if (readOnly || !drawing.current) return
+    if (readOnly || !active || !drawing.current) return
     drawing.current = false
     const canvas = canvasRef.current
     if (canvas) onChange(canvas.toDataURL('image/png'))
@@ -72,7 +77,7 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
     if (!canvas || !ctx) return
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    setUnlocked(false)
+    setHasContent(false)
     onChange('')
   }
 
@@ -96,20 +101,39 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        className="w-full h-32 border border-gray-300 rounded-md bg-white touch-none"
+        className={`w-full h-32 border rounded-md bg-white ${
+          active ? 'touch-none border-teal-600' : 'touch-pan-y border-gray-300'
+        }`}
       />
-      {!unlocked && (
-        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm pointer-events-none">
-          Tap to unlock
+      {!active && (
+        <button
+          type="button"
+          onClick={() => setActive(true)}
+          className="absolute inset-0 flex items-end justify-center pb-2"
+        >
+          <span className="text-xs font-medium text-gray-500 bg-white/90 px-2 py-1 rounded-full border border-gray-200">
+            {hasContent ? 'Tap to expand & edit' : 'Tap to expand & sign'}
+          </span>
+        </button>
+      )}
+      {active && (
+        <div className="flex gap-4 mt-1">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-sm text-teal-700 font-medium min-h-[44px] px-2"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={() => setActive(false)}
+            className="text-sm text-gray-600 font-medium min-h-[44px] px-2"
+          >
+            Done
+          </button>
         </div>
       )}
-      <button
-        type="button"
-        onClick={handleClear}
-        className="mt-1 text-sm text-teal-700 font-medium min-h-[44px] px-2"
-      >
-        Clear
-      </button>
     </div>
   )
 }
