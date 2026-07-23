@@ -1,10 +1,35 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Inspection, YesNo } from '../types/inspection'
 import { createInspection, getInspection, updateInspection } from '../services/api'
 import { SignaturePad } from '../components/SignaturePad'
+import { PRODUCTS } from '../data/products'
 
-const DISPATCH_NAMES = ['Ravi Kumar', 'Aditi Rao', 'Manoj Singh', 'Priya Nair']
+// To edit the names offered in the "Dispatch Confirmed By" dropdown, edit this list.
+const DISPATCH_NAMES = ['Amal Anilkumar', 'MHD Anas']
+
+// To edit the names offered in the "Inspector Name" dropdown, edit this list.
+const INSPECTOR_NAMES = ['Suhail K', 'MHD Vasil', 'MHD Ziyad', 'MHD Shafi', 'Adarsh P', 'MHD Afras' ]
+
+// Final Confirmation By is always this fixed name — not user-editable.
+const FINAL_CONFIRMATION_NAME = 'Mohammed Misbahudeen KC'
+
+// Inspector names added via "+ Add new inspector..." in the app are persisted
+// here so they show up in the dropdown from then on, without editing code.
+const CUSTOM_INSPECTORS_KEY = 'helett-qc-custom-inspectors'
+
+function loadCustomInspectors(): string[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_INSPECTORS_KEY)
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function saveCustomInspectors(names: string[]) {
+  localStorage.setItem(CUSTOM_INSPECTORS_KEY, JSON.stringify(names))
+}
 
 function emptyInspection(): Inspection {
   const today = new Date().toISOString().slice(0, 10)
@@ -38,7 +63,7 @@ function emptyInspection(): Inspection {
     dispatchConfirmedBy: '',
     dispatchDate: '',
     dispatchSignUrl: '',
-    finalConfirmationBy: '',
+    finalConfirmationBy: FINAL_CONFIRMATION_NAME,
     signatureUrl: '',
     status: 'Open',
     updatedAt: ''
@@ -73,7 +98,17 @@ function Stepper({
       >
         −
       </button>
-      <span className="w-12 text-center font-medium">{value}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        disabled={disabled}
+        value={value}
+        onChange={(e) => {
+          const n = parseInt(e.target.value, 10)
+          onChange(isNaN(n) ? 0 : Math.max(0, n))
+        }}
+        className="w-16 h-11 text-center font-medium rounded-md border border-gray-300 disabled:bg-gray-100"
+      />
       <button
         type="button"
         disabled={disabled}
@@ -91,13 +126,15 @@ function Segmented<T extends string>({
   value,
   onChange,
   disabled,
-  colors
+  colors,
+  labels
 }: {
   options: T[]
   value: T
   onChange: (v: T) => void
   disabled?: boolean
   colors?: Partial<Record<T, string>>
+  labels?: Partial<Record<T, string>>
 }) {
   return (
     <div className="flex gap-2">
@@ -114,7 +151,7 @@ function Segmented<T extends string>({
               active ? activeColor : 'bg-white text-gray-700 border-gray-300'
             }`}
           >
-            {opt}
+            {labels?.[opt] ?? opt}
           </button>
         )
       })}
@@ -137,8 +174,99 @@ function YesNoToggle({
       value={value}
       onChange={onChange}
       disabled={disabled}
+      labels={{ Y: 'Yes', N: 'No' }}
       colors={{ Y: 'bg-green-600 text-white border-green-600', N: 'bg-red-600 text-white border-red-600' }}
     />
+  )
+}
+
+// Manages one or more inspector selects (for shipments checked by multiple
+// people). The joined, comma-separated result is written back into the
+// same `inspectorName` field, e.g. "Aditi Rao, Anson, Amal".
+function InspectorNamesField({
+  initialValue,
+  onChange,
+  options,
+  onAddOption,
+  disabled
+}: {
+  initialValue: string
+  onChange: (v: string) => void
+  options: string[]
+  onAddOption: (name: string) => void
+  disabled?: boolean
+}) {
+  const [rows, setRows] = useState<string[]>(() => {
+    const parsed = initialValue.split(',').map((s) => s.trim()).filter(Boolean)
+    return parsed.length > 0 ? parsed : ['']
+  })
+
+  function commit(next: string[]) {
+    setRows(next)
+    onChange(next.filter(Boolean).join(', '))
+  }
+
+  function handleSelect(index: number, val: string) {
+    if (val === '__add__') {
+      const name = window.prompt('Enter new inspector name')
+      if (name && name.trim()) {
+        onAddOption(name.trim())
+        const next = [...rows]
+        next[index] = name.trim()
+        commit(next)
+      }
+      return
+    }
+    const next = [...rows]
+    next[index] = val
+    commit(next)
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, ''])
+  }
+
+  function removeRow(index: number) {
+    const next = rows.filter((_, i) => i !== index)
+    commit(next.length > 0 ? next : [''])
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row, index) => (
+        <div key={index} className="flex gap-2">
+          <select
+            disabled={disabled}
+            value={row}
+            onChange={(e) => handleSelect(index, e.target.value)}
+            className="flex-1 h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
+          >
+            <option value="">Select...</option>
+            {options.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+            <option value="__add__">+ Add new inspector...</option>
+          </select>
+          {!disabled && rows.length > 1 && (
+            <button
+              type="button"
+              aria-label="Remove inspector"
+              onClick={() => removeRow(index)}
+              className="w-11 h-11 shrink-0 rounded-md border border-gray-300 text-gray-500 text-lg"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      {!disabled && (
+        <button type="button" onClick={addRow} className="text-sm font-medium text-teal-700 min-h-[44px] px-2">
+          + Add Inspector
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -152,6 +280,21 @@ export function QCForm() {
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [customInspectors, setCustomInspectors] = useState<string[]>(() => loadCustomInspectors())
+
+  const inspectorOptions = useMemo(
+    () => [...new Set([...INSPECTOR_NAMES, ...customInspectors])],
+    [customInspectors]
+  )
+
+  function addCustomInspector(name: string) {
+    setCustomInspectors((prev) => {
+      if (prev.includes(name) || INSPECTOR_NAMES.includes(name)) return prev
+      const next = [...prev, name]
+      saveCustomInspectors(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (isNew || !id) {
@@ -171,7 +314,10 @@ export function QCForm() {
       .finally(() => setLoading(false))
   }, [id, isNew])
 
-  const readOnly = form.status === 'Closed'
+  // Locked based on the status the record had when loaded, NOT the live
+  // form.status — otherwise toggling "Closed" would instantly hide the Save
+  // button and lock the form before the user could ever persist the change.
+  const readOnly = initialForm.status === 'Closed'
 
   function set<K extends keyof Inspection>(key: K, value: Inspection[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -203,11 +349,12 @@ export function QCForm() {
     if (!validate()) return
     setSaving(true)
     try {
+      const dataToSave: Inspection = { ...form, finalConfirmationBy: FINAL_CONFIRMATION_NAME }
       if (isNew) {
-        const { id: _id, timestamp: _ts, updatedAt: _u, ...rest } = form
+        const { id: _id, timestamp: _ts, updatedAt: _u, ...rest } = dataToSave
         await createInspection(rest)
       } else if (id) {
-        await updateInspection(id, form)
+        await updateInspection(id, dataToSave)
       }
       navigate('/')
     } catch (err) {
@@ -275,23 +422,33 @@ export function QCForm() {
         </Field>
 
         <Field label="Product Name">
-          <input
-            type="text"
+          <select
             disabled={readOnly}
             value={form.productName}
-            onChange={(e) => set('productName', e.target.value)}
+            onChange={(e) => {
+              const product = PRODUCTS.find((p) => p.name === e.target.value)
+              set('productName', e.target.value)
+              set('sku', product?.asin ?? '')
+            }}
             className="w-full h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
-          />
+          >
+            <option value="">Select product...</option>
+            {PRODUCTS.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+              </option>
+            ))}
+          </select>
           {errors.productName && <p className="text-red-600 text-xs mt-1">{errors.productName}</p>}
         </Field>
 
-        <Field label="SKU">
+        <Field label="SKU (ASIN)">
           <input
-            type="text"
-            disabled={readOnly}
+            readOnly
+            disabled
             value={form.sku}
-            onChange={(e) => set('sku', e.target.value)}
-            className="w-full h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
+            placeholder="Auto-filled from Product Name"
+            className="w-full h-11 px-3 rounded-md border border-gray-200 bg-gray-100 text-gray-500 text-sm"
           />
           {errors.sku && <p className="text-red-600 text-xs mt-1">{errors.sku}</p>}
         </Field>
@@ -426,12 +583,13 @@ export function QCForm() {
         </Field>
 
         <Field label="Inspector Name">
-          <input
-            type="text"
+          <InspectorNamesField
+            key={id}
+            initialValue={form.inspectorName}
+            onChange={(v) => set('inspectorName', v)}
+            options={inspectorOptions}
+            onAddOption={addCustomInspector}
             disabled={readOnly}
-            value={form.inspectorName}
-            onChange={(e) => set('inspectorName', e.target.value)}
-            className="w-full h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
           />
           {errors.inspectorName && <p className="text-red-600 text-xs mt-1">{errors.inspectorName}</p>}
         </Field>
@@ -480,11 +638,10 @@ export function QCForm() {
 
         <Field label="Final Confirmation By">
           <input
-            type="text"
-            disabled={readOnly}
-            value={form.finalConfirmationBy}
-            onChange={(e) => set('finalConfirmationBy', e.target.value)}
-            className="w-full h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
+            readOnly
+            disabled
+            value={FINAL_CONFIRMATION_NAME}
+            className="w-full h-11 px-3 rounded-md border border-gray-200 bg-gray-100 text-gray-500 text-sm"
           />
         </Field>
 
@@ -497,8 +654,14 @@ export function QCForm() {
             options={['Open', 'Closed']}
             value={form.status}
             onChange={(v) => set('status', v)}
+            disabled={readOnly}
             colors={{ Open: 'bg-red-600 text-white border-red-600', Closed: 'bg-green-600 text-white border-green-600' }}
           />
+          {readOnly && (
+            <p className="text-xs text-gray-500 mt-1">
+              Closed cases can only be reopened in Google Sheets by an admin.
+            </p>
+          )}
         </Field>
 
         {!readOnly && (

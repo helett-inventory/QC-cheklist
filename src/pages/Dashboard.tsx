@@ -5,7 +5,14 @@ import { InspectionCard } from '../components/InspectionCard'
 
 function formatDateHeader(dateStr: string): string {
   if (!dateStr) return 'Unknown Date'
-  const d = new Date(dateStr)
+  // Parse "YYYY-MM-DD" (optionally with a time suffix, from legacy rows) as a
+  // plain local date rather than via `new Date(dateStr)`, which treats a
+  // bare date as UTC midnight and can shift the displayed date by a day
+  // depending on the viewer's timezone.
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return dateStr
+  const [, year, month, day] = match
+  const d = new Date(Number(year), Number(month) - 1, Number(day))
   if (isNaN(d.getTime())) return dateStr
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
@@ -19,12 +26,9 @@ export function Dashboard() {
   const filtered = useMemo(() => {
     if (!query.trim()) return inspections
     const q = query.trim().toLowerCase()
+    const matches = (value: unknown) => String(value ?? '').toLowerCase().includes(q)
     return inspections.filter(
-      (i) =>
-        i.shipmentId.toLowerCase().includes(q) ||
-        i.productName.toLowerCase().includes(q) ||
-        i.sku.toLowerCase().includes(q) ||
-        i.inspectorName.toLowerCase().includes(q)
+      (i) => matches(i.shipmentId) || matches(i.productName) || matches(i.sku) || matches(i.inspectorName)
     )
   }, [inspections, query])
 
@@ -47,7 +51,12 @@ export function Dashboard() {
             <button
               type="button"
               aria-label="Search"
-              onClick={() => setSearchOpen((s) => !s)}
+              onClick={() =>
+                setSearchOpen((s) => {
+                  if (s) setQuery('')
+                  return !s
+                })
+              }
               className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-600"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

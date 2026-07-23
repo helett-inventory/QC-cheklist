@@ -29,17 +29,46 @@ function getSheet_() {
   return sheet
 }
 
+// inspectionDate and dispatchDate are meant to be plain calendar dates
+// ("2026-07-23"), never a timestamp. Sheets auto-converts date-looking
+// strings into a real Date value on write, which (a) shows a time component
+// in the sheet and (b) shifts the date by a day on read depending on the
+// spreadsheet's timezone vs UTC when serialized to JSON. formatDateOnly_
+// normalizes any such value (old or new) back to a clean "yyyy-MM-dd"
+// string, and inspectionToRow_ force-stores it as text going forward.
+var DATE_ONLY_FIELDS = ['inspectionDate', 'dispatchDate']
+
+function formatDateOnly_(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+  }
+  if (typeof value === 'string') {
+    var match = value.match(/^(\d{4}-\d{2}-\d{2})/)
+    return match ? match[1] : value
+  }
+  return value
+}
+
 function rowToInspection_(row) {
   var obj = {}
   for (var i = 0; i < FIELDS.length; i++) {
-    obj[FIELDS[i]] = row[i] === undefined ? '' : row[i]
+    var field = FIELDS[i]
+    var value = row[i] === undefined ? '' : row[i]
+    if (DATE_ONLY_FIELDS.indexOf(field) !== -1) {
+      value = formatDateOnly_(value)
+    }
+    obj[field] = value
   }
   return obj
 }
 
 function inspectionToRow_(insp) {
   return FIELDS.map(function (f) {
-    return insp[f] !== undefined ? insp[f] : ''
+    var v = insp[f] !== undefined ? insp[f] : ''
+    if (DATE_ONLY_FIELDS.indexOf(f) !== -1 && v) {
+      return "'" + formatDateOnly_(v)
+    }
+    return v
   })
 }
 
