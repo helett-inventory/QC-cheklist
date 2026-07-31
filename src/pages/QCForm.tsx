@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Inspection, YesNo } from '../types/inspection'
 import { createInspection, getInspection, updateInspection } from '../services/api'
+import { readCachedInspection } from '../services/cache'
 import { SignaturePad } from '../components/SignaturePad'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { PRODUCTS } from '../data/products'
@@ -291,12 +292,34 @@ export function QCForm() {
       setErrors({})
       return
     }
-    setLoading(true)
+    // Stale-while-revalidate: if the Dashboard already cached this record
+    // (from its last list fetch), show it immediately instead of a blank
+    // loading screen, then quietly fetch the authoritative version in the
+    // background. Only apply that refreshed data if the user hasn't started
+    // editing yet, so an in-flight fetch can't clobber their changes.
+    const cached = readCachedInspection(id)
+    if (cached) {
+      setForm(cached)
+      setInitialForm(cached)
+      setErrors({})
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     getInspection(id)
       .then((insp) => {
-        setForm(insp)
-        setInitialForm(insp)
-        setErrors({})
+        if (!cached) {
+          setForm(insp)
+          setInitialForm(insp)
+          setErrors({})
+          return
+        }
+        // Only overwrite with the freshly fetched copy if the form still
+        // matches what we seeded from cache — i.e. the user hasn't edited
+        // anything yet in the time it took this request to resolve.
+        const cachedJson = JSON.stringify(cached)
+        setForm((current) => (JSON.stringify(current) === cachedJson ? insp : current))
+        setInitialForm((current) => (JSON.stringify(current) === cachedJson ? insp : current))
       })
       .finally(() => setLoading(false))
   }, [id, isNew])
@@ -564,6 +587,7 @@ export function QCForm() {
 
         <Field label="QC Signature">
           <SignaturePad
+            key={id}
             value={form.qcSignatureUrl}
             onChange={(v) => set('qcSignatureUrl', v)}
             readOnly={readOnly}
@@ -591,6 +615,7 @@ export function QCForm() {
 
         <Field label="Dispatch Sign">
           <SignaturePad
+            key={id}
             value={form.dispatchSignUrl}
             onChange={(v) => set('dispatchSignUrl', v)}
             readOnly={readOnly}
@@ -607,7 +632,12 @@ export function QCForm() {
         </Field>
 
         <Field label="Signature">
-          <SignaturePad value={form.signatureUrl} onChange={(v) => set('signatureUrl', v)} readOnly={readOnly} />
+          <SignaturePad
+            key={id}
+            value={form.signatureUrl}
+            onChange={(v) => set('signatureUrl', v)}
+            readOnly={readOnly}
+          />
         </Field>
 
         <Field label="Status">

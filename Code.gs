@@ -73,6 +73,9 @@ function rowToInspection_(row) {
     if (DATE_ONLY_FIELDS.indexOf(field) !== -1) {
       value = formatDateOnly_(value)
     }
+    if (SIGNATURE_FIELDS.indexOf(field) !== -1) {
+      value = normalizeSignatureUrl_(value)
+    }
     obj[field] = value
   }
   return obj
@@ -105,9 +108,89 @@ function getSignatureFolder_() {
   return DriveApp.createFolder(DRIVE_FOLDER_NAME)
 }
 
+// file.getUrl() returns Drive's HTML *viewer page* ("/file/d/ID/view"), not
+// raw image bytes, so it never worked as an <img> source. Its replacement,
+// the "thumbnail" hotlink endpoint, IS a real image URL — but Google's
+// public hotlink endpoints (thumbnail?id=, uc?export=view) are known to
+// intermittently 403 or rate-limit anonymous cross-origin <img> requests,
+// which made saved signatures still show blank sometimes even with a
+// correct URL in the data.
+//
+// The reliable fix: never ask the browser to load a Drive URL directly.
+// inlineDriveSignature_ fetches the actual image bytes SERVER-SIDE (Code.gs
+// has full authorized Drive access, so it isn't subject to the anonymous
+// hotlink restrictions) and embeds them as a base64 data URL right in the
+// JSON response. SignaturePad already natively supports base64 data URLs —
+// it's the exact format it produces before upload — so no frontend change
+// is needed. The Drive file/link is still kept and stored in the sheet so
+// admins can open it directly from Google Sheets.
+function embeddableDriveImageUrl_(fileId) {
+  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000'
+}
+
+function driveFileIdFromUrl_(value) {
+  if (typeof value !== 'string') return null
+  var match = value.match(/id=([^&]+)/) || value.match(/\/file\/d\/([^/]+)\//)
+  return match ? match[1] : null
+}
+
+// Self-heals rows saved by an earlier, buggy version of this file that
+// stored the non-embeddable viewer URL instead.
+function normalizeSignatureUrl_(value) {
+  var fileId = driveFileIdFromUrl_(value)
+  return fileId ? embeddableDriveImageUrl_(fileId) : value
+}
+
+// Converts a stored Drive signature reference into a base64 data URL by
+// reading the actual file bytes. Falls back to the original value (rather
+// than failing the whole request) if the file can't be read, e.g. deleted.
+function inlineDriveSignature_(value) {
+  var fileId = driveFileIdFromUrl_(value)
+  if (!fileId) return value
+  try {
+    var blob = DriveApp.getFileById(fileId).getBlob()
+    return 'data:' + blob.getContentType() + ';base64,' + Utilities.base64Encode(blob.getBytes())
+  } catch (err) {
+    return value
+  }
+}
+
+// Applied right before a single inspection (get/create/update) goes out as
+// JSON, so the app always receives ready-to-render image data instead of a
+// link it has to fetch separately. Not applied to 'list' — Dashboard cards
+// don't show signatures, so inlining base64 into every record there would
+// only bloat that payload for no benefit.
+function inlineAllSignatures_(insp) {
+  SIGNATURE_FIELDS.forEach(function (field) {
+    insp[field] = inlineDriveSignature_(insp[field])
+  })
+  return insp
+}
+
+// The frontend always resubmits every field on save, including signature
+// fields it only ever received back from us as inlined base64 (see
+// inlineAllSignatures_ above). Without this check, resaving a record the
+// user never actually re-signed would look identical to a brand new
+// signature — both are base64 data URLs — and persistSignatures_ would
+// re-upload and duplicate the same image to Drive on every single save.
+// Comparing the incoming base64 against the existing file's own decoded
+// bytes tells a real edit apart from an unchanged resubmission.
+function discardUnchangedSignatures_(updated, existing) {
+  SIGNATURE_FIELDS.forEach(function (field) {
+    var incoming = updated[field]
+    if (typeof incoming === 'string' && incoming.indexOf('data:image') === 0) {
+      if (incoming === inlineDriveSignature_(existing[field])) {
+        updated[field] = existing[field] // unchanged — keep the original Drive reference
+      }
+    }
+  })
+  return updated
+}
+
 // If a signature field holds a base64 PNG data URL (from SignaturePad's
 // toDataURL()), decode it and store it as a file in Drive, replacing the
-// field with the file's view URL. Leaves already-uploaded URLs untouched.
+// field with a Drive reference. Leaves already-uploaded URLs untouched
+// (aside from normalizing legacy viewer-page URLs, see above).
 function persistSignatures_(insp) {
   var folder = null
   SIGNATURE_FIELDS.forEach(function (field) {
@@ -118,7 +201,9 @@ function persistSignatures_(insp) {
       var blob = Utilities.newBlob(Utilities.base64Decode(base64), 'image/png', insp.id + '-' + field + '.png')
       var file = folder.createFile(blob)
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW)
-      insp[field] = file.getUrl()
+      insp[field] = embeddableDriveImageUrl_(file.getId())
+    } else {
+      insp[field] = normalizeSignatureUrl_(value)
     }
   })
   return insp
@@ -150,7 +235,7 @@ function doPost(e) {
       return jsonResponse_({ error: 'Inspection not found' }, 404)
     }
     var row = sheet.getRange(rowIdx, 1, 1, FIELDS.length).getValues()[0]
-    result = rowToInspection_(row)
+    result = inlineAllSignatures_(rowToInspection_(row))
   } else if (action === 'create') {
     var now = new Date().toISOString()
     var insp = Object.assign({}, body)
@@ -159,8 +244,8 @@ function doPost(e) {
     insp.timestamp = now
     insp.updatedAt = now
     insp = persistSignatures_(insp)
-    sheet.appendRow(inspectionToRow_(insp))
-    result = insp
+    sheet.appendRow(inspectionToRow_(insp)) // writes the Drive reference, not inlined base64
+    result = inlineAllSignatures_(insp)
   } else if (action === 'update') {
     var updateRowIdx = findRowIndexById_(sheet, body.id)
     if (updateRowIdx === -1) {
@@ -171,9 +256,10 @@ function doPost(e) {
     var updated = Object.assign({}, existing, body)
     delete updated.action
     updated.updatedAt = new Date().toISOString()
+    updated = discardUnchangedSignatures_(updated, existing)
     updated = persistSignatures_(updated)
-    sheet.getRange(updateRowIdx, 1, 1, FIELDS.length).setValues([inspectionToRow_(updated)])
-    result = updated
+    sheet.getRange(updateRowIdx, 1, 1, FIELDS.length).setValues([inspectionToRow_(updated)]) // Drive reference, not inlined base64
+    result = inlineAllSignatures_(updated)
   } else {
     return jsonResponse_({ error: 'Unknown action: ' + action }, 400)
   }
