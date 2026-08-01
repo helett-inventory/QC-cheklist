@@ -2,6 +2,16 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInspections } from '../hooks/useInspections'
 import { InspectionCard } from '../components/InspectionCard'
+import type { Inspection } from '../types/inspection'
+
+type SortMode = 'newest' | 'oldest' | 'open' | 'closed'
+
+const SORT_LABELS: Record<SortMode, string> = {
+  newest: 'Newest first',
+  oldest: 'Oldest first',
+  open: 'Open first',
+  closed: 'Closed first'
+}
 
 function formatDateHeader(dateStr: string): string {
   if (!dateStr) return 'Unknown Date'
@@ -21,7 +31,7 @@ export function Dashboard() {
   const { inspections, loading, error, refetch } = useInspections()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [sortMode, setSortMode] = useState<SortMode>('newest')
   const navigate = useNavigate()
 
   const filtered = useMemo(() => {
@@ -33,17 +43,30 @@ export function Dashboard() {
     )
   }, [inspections, query])
 
+  const byStatus = sortMode === 'open' || sortMode === 'closed'
+
   const grouped = useMemo(() => {
-    const groups = new Map<string, typeof filtered>()
+    const groups = new Map<string, Inspection[]>()
     for (const insp of filtered) {
-      const key = insp.dispatchDate || 'Unknown Date'
+      const key = byStatus ? insp.status : insp.dispatchDate || 'Unknown Date'
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(insp)
     }
+
+    if (byStatus) {
+      // Sort each status group's cards by date (newest first) — status is
+      // the primary sort key here, date is just a sensible tiebreaker.
+      for (const items of groups.values()) {
+        items.sort((a, b) => (b.dispatchDate || '').localeCompare(a.dispatchDate || ''))
+      }
+      const firstKey = sortMode === 'open' ? 'Open' : 'Closed'
+      return [...groups.entries()].sort((a, b) => (a[0] === firstKey ? -1 : b[0] === firstKey ? 1 : 0))
+    }
+
     return [...groups.entries()].sort((a, b) =>
-      sortDir === 'desc' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0])
+      sortMode === 'newest' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0])
     )
-  }, [filtered, sortDir])
+  }, [filtered, sortMode, byStatus])
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
@@ -98,10 +121,10 @@ export function Dashboard() {
         {!loading && !error && grouped.length === 0 && (
           <div className="p-4 text-center text-gray-500">No inspections found.</div>
         )}
-        {grouped.map(([date, items]) => (
-          <div key={date}>
+        {grouped.map(([key, items]) => (
+          <div key={key}>
             <div className="sticky top-[56px] z-10 bg-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              {formatDateHeader(date)}
+              {byStatus ? key : formatDateHeader(key)}
             </div>
             <div>
               {items.map((insp) => (
@@ -122,24 +145,23 @@ export function Dashboard() {
       </button>
 
       <nav className="fixed z-30 bottom-0 inset-x-0 h-14 bg-teal-800 flex items-center justify-center text-white">
-        <button
-          type="button"
-          onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
-          className="flex items-center gap-2 min-h-[44px] px-4"
-        >
-          {sortDir === 'desc' ? (
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9M3 12h5m4 8V4m0 16l-4-4m4 4l4-4" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 20h13M3 16h9M3 12h5m4-8v16m0-16l-4 4m4-4l4 4" />
-            </svg>
-          )}
-          <span className="text-sm font-medium">
-            Sort: {sortDir === 'desc' ? 'Newest first' : 'Oldest first'}
-          </span>
-        </button>
+        <label className="flex items-center gap-2 min-h-[44px] px-4">
+          <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M6 12h12M10 17h4" />
+          </svg>
+          <span className="text-sm font-medium">Sort:</span>
+          <select
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as SortMode)}
+            className="bg-transparent text-sm font-medium focus:outline-none [&>option]:text-gray-900"
+          >
+            {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
+              <option key={mode} value={mode}>
+                {SORT_LABELS[mode]}
+              </option>
+            ))}
+          </select>
+        </label>
       </nav>
     </div>
   )
