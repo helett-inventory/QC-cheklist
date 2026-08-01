@@ -9,3 +9,13 @@ html, body, #root {
 body {
   -webkit-tap-highlight-color: transparent;
 }
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

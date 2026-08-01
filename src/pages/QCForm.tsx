@@ -5,6 +5,7 @@ import { createInspection, getInspection, updateInspection } from '../services/a
 import { readCachedInspection } from '../services/cache'
 import { SignaturePad } from '../components/SignaturePad'
 import { SearchableSelect } from '../components/SearchableSelect'
+import { InspectionReport } from '../components/InspectionReport'
 import { PRODUCTS } from '../data/products'
 
 // To edit the names offered in the "Dispatch Confirmed By" dropdown, edit this list.
@@ -377,7 +378,8 @@ export function QCForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-24">
+    <>
+    <div className="min-h-screen bg-gray-100 pb-24 print:hidden">
       <header className="sticky top-0 z-20 bg-white border-b border-gray-200 flex items-center px-2 h-14">
         <button
           type="button"
@@ -665,7 +667,38 @@ export function QCForm() {
             {saving ? 'Saving...' : 'Save'}
           </button>
         )}
+
+        {readOnly && (
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="w-full h-12 mt-2 rounded-md border border-teal-600 text-teal-700 font-semibold flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"
+              />
+              <rect x="6" y="14" width="12" height="8" strokeWidth={2} strokeLinejoin="round" />
+            </svg>
+            Download Report
+          </button>
+        )}
       </main>
     </div>
+    {/* A fixed height + overflow:hidden here (an earlier attempt at a hard
+        page-fit guarantee) caused a phantom blank second page: Chrome's
+        print dialog reserves its own header/footer space beyond our @page
+        margin, so a box sized to the full printable area no longer fits on
+        one physical page — the (already visually clipped) remainder spills
+        onto page 2. The actual guarantee is the compact layout itself
+        (~162mm of content, well under a page) plus the QC Remarks clamp
+        below — no artificial height cap needed. */}
+    <div className="hidden print:block">
+      <InspectionReport inspection={form} />
+    </div>
+    </>
   )
 }
