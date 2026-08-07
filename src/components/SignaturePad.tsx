@@ -132,6 +132,7 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
 
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     if (readOnly || !active) return
+    e.preventDefault()
     setHasContent(true)
     drawing.current = true
     const ctx = canvasRef.current?.getContext('2d')
@@ -165,6 +166,22 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
       lastEmittedValue.current = dataUrl
       onChange(dataUrl)
     }
+  }
+
+  // setPointerCapture (above) exists specifically so pointerleave doesn't
+  // fire mid-stroke — but its hit-testing can be flaky for touch input on
+  // iOS Safari, briefly registering the finger as having "left" the canvas
+  // while it's still on it, especially right after pointerdown. If capture
+  // silently failed (it's wrapped in try/catch above for exactly this
+  // reason), that spurious pointerleave would end the stroke before any
+  // pointermove ever got a chance to draw — matching "nothing draws, no
+  // scroll" exactly, since touch-action still correctly blocks scrolling
+  // regardless. So: only trust pointerleave to end a stroke for mouse/pen,
+  // where the cursor genuinely leaving the canvas is a meaningful signal —
+  // for touch, pointerup is the only reliable end-of-stroke event.
+  function handlePointerLeave(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (e.pointerType === 'touch') return
+    finishStroke()
   }
 
   function handleTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
@@ -218,7 +235,7 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
         onPointerDown={SUPPORTS_POINTER_EVENTS ? handlePointerDown : undefined}
         onPointerMove={SUPPORTS_POINTER_EVENTS ? handlePointerMove : undefined}
         onPointerUp={SUPPORTS_POINTER_EVENTS ? finishStroke : undefined}
-        onPointerLeave={SUPPORTS_POINTER_EVENTS ? finishStroke : undefined}
+        onPointerLeave={SUPPORTS_POINTER_EVENTS ? handlePointerLeave : undefined}
         onTouchStart={SUPPORTS_POINTER_EVENTS ? undefined : handleTouchStart}
         onTouchEnd={SUPPORTS_POINTER_EVENTS ? undefined : finishStroke}
         // iOS treats a touch-and-hold on any element as a possible text
