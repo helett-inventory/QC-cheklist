@@ -21,7 +21,8 @@
       "Bash(mkdir -p \"/c/Users/Admin/AppData/Local/Temp/claude/C--Users-Admin-OneDrive-Desktop-QC-Checklist-App/fb2cd138-b539-4488-931e-651a61680fc5/scratchpad\")",
       "Bash(powershell -Command \"Stop-Process -Id 17528,20868 -Force\")",
       "Bash(powershell -Command \"Stop-Process -Id 14312,8152 -Force\")",
-      "Bash(powershell -Command \"Stop-Process -Id 16868,18056 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 16868,18056 -Force\")",
+      "Bash(powershell -Command \"Stop-Process -Id 1308,8224 -Force\")"
     ]
   }
 }

@@ -7,7 +7,7 @@ interface SignaturePadProps {
 }
 
 // Pointer Events only exist in iOS Safari 13+ (2019). On anything older,
-// onPointerDown/Move/Up simply never fire — silent, total failure to draw.
+// pointerdown/move/up simply never fire — silent, total failure to draw.
 // Feature-detecting once and falling back to plain touch events covers
 // those devices without needing to know the exact minimum iOS version.
 const SUPPORTS_POINTER_EVENTS = typeof window !== 'undefined' && 'PointerEvent' in window
@@ -41,6 +41,28 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
   // starts over the pad while flicking through the form doesn't get read as
   // a stroke. Tapping expands it into drawing mode.
   const [active, setActive] = useState(false)
+
+  // React doesn't attach onPointerDown/onTouchMove/etc as real listeners on
+  // the canvas — it attaches ONE delegated listener at the app root and
+  // dispatches synthetically. That's invisible for discrete taps (like the
+  // "Tap to expand" button), but iOS Safari's compositor decides how to
+  // handle a touch — scroll vs. custom drag tracking, touch-action
+  // enforcement — before JS runs, and it needs a REAL listener registered
+  // directly on the element to reliably hand off a *continuous* drag's
+  // move events. Without that, actually drawing a line (a pointerdown →
+  // many pointermoves → pointerup stream) can silently never fire on iOS,
+  // even though the CSS touch-action still correctly blocks page scroll —
+  // which is exactly the symptom this was built to fix (expand works,
+  // nothing draws, no scroll either). So every drawing listener below is
+  // attached natively via addEventListener, never via JSX props. These refs
+  // let that one-time-attached effect always see current prop/state values
+  // without needing to re-attach listeners every render.
+  const activeRef = useRef(active)
+  activeRef.current = active
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
   // A form can hold several of these (QC/Dispatch/Final signatures), each
   // backed by a Drive-hosted image — load the pixel data only once the pad
@@ -99,104 +121,110 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
     return () => observer.disconnect()
   }, [value])
 
-  // iOS Safari registers React's synthetic onTouchMove as a passive
-  // listener by default, so calling preventDefault() inside it silently
-  // does nothing — the page can still hijack the gesture as a scroll. A
-  // real, non-passive listener attached directly to the canvas is the only
-  // reliable way to block that during a touch-drawn stroke. Only needed on
-  // the touch-fallback path (see SUPPORTS_POINTER_EVENTS above); pointer
-  // events don't have this passive-by-default behavior.
+  // All native (non-delegated) drawing listeners, attached once on mount —
+  // see the big comment above activeRef for why this can't just be JSX
+  // onPointerDown/onTouchStart props.
   useEffect(() => {
-    if (SUPPORTS_POINTER_EVENTS) return
     const canvas = canvasRef.current
     if (!canvas) return
 
-    function onTouchMoveNative(e: TouchEvent) {
-      if (readOnly || !active || !drawing.current) return
-      e.preventDefault()
-      const touch = e.touches[0]
-      if (!touch || !canvas) return
-      const pos = getPosFromClient(canvas, touch.clientX, touch.clientY)
-      const ctx = canvas.getContext('2d')
+    function beginStroke(clientX: number, clientY: number) {
+      if (readOnlyRef.current || !activeRef.current) return
+      setHasContent(true)
+      drawing.current = true
+      const ctx = canvas!.getContext('2d')
+      const pos = getPosFromClient(canvas!, clientX, clientY)
+      ctx?.beginPath()
+      ctx?.moveTo(pos.x, pos.y)
+    }
+
+    function continueStroke(clientX: number, clientY: number) {
+      if (readOnlyRef.current || !activeRef.current || !drawing.current) return
+      const ctx = canvas!.getContext('2d')
+      const pos = getPosFromClient(canvas!, clientX, clientY)
       ctx?.lineTo(pos.x, pos.y)
       ctx?.stroke()
     }
 
-    canvas.addEventListener('touchmove', onTouchMoveNative, { passive: false })
-    return () => canvas.removeEventListener('touchmove', onTouchMoveNative)
-  }, [active, readOnly])
-
-  function getPos(e: React.PointerEvent<HTMLCanvasElement>) {
-    return getPosFromClient(canvasRef.current!, e.clientX, e.clientY)
-  }
-
-  function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (readOnly || !active) return
-    e.preventDefault()
-    setHasContent(true)
-    drawing.current = true
-    const ctx = canvasRef.current?.getContext('2d')
-    const pos = getPos(e)
-    ctx?.beginPath()
-    ctx?.moveTo(pos.x, pos.y)
-    try {
-      // Support for this has been inconsistent across Safari versions; if
-      // it throws, drawing should still work via the move/up handlers, so
-      // don't let it break the rest of the gesture.
-      ;(e.target as Element).setPointerCapture(e.pointerId)
-    } catch {
-      // ignore
-    }
-  }
-
-  function handlePointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (readOnly || !active || !drawing.current) return
-    const ctx = canvasRef.current?.getContext('2d')
-    const pos = getPos(e)
-    ctx?.lineTo(pos.x, pos.y)
-    ctx?.stroke()
-  }
-
-  function finishStroke() {
-    if (readOnly || !active || !drawing.current) return
-    drawing.current = false
-    const canvas = canvasRef.current
-    if (canvas) {
-      const dataUrl = canvas.toDataURL('image/png')
+    function endStroke() {
+      if (readOnlyRef.current || !activeRef.current || !drawing.current) return
+      drawing.current = false
+      const dataUrl = canvas!.toDataURL('image/png')
       lastEmittedValue.current = dataUrl
-      onChange(dataUrl)
+      onChangeRef.current(dataUrl)
     }
-  }
 
-  // setPointerCapture (above) exists specifically so pointerleave doesn't
-  // fire mid-stroke — but its hit-testing can be flaky for touch input on
-  // iOS Safari, briefly registering the finger as having "left" the canvas
-  // while it's still on it, especially right after pointerdown. If capture
-  // silently failed (it's wrapped in try/catch above for exactly this
-  // reason), that spurious pointerleave would end the stroke before any
-  // pointermove ever got a chance to draw — matching "nothing draws, no
-  // scroll" exactly, since touch-action still correctly blocks scrolling
-  // regardless. So: only trust pointerleave to end a stroke for mouse/pen,
-  // where the cursor genuinely leaving the canvas is a meaningful signal —
-  // for touch, pointerup is the only reliable end-of-stroke event.
-  function handlePointerLeave(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (e.pointerType === 'touch') return
-    finishStroke()
-  }
+    function onPointerDown(e: PointerEvent) {
+      if (readOnlyRef.current || !activeRef.current) return
+      e.preventDefault()
+      beginStroke(e.clientX, e.clientY)
+      try {
+        // Support for this has been inconsistent across Safari versions;
+        // if it throws, drawing should still work via move/up, so don't
+        // let it break the rest of the gesture.
+        canvas!.setPointerCapture(e.pointerId)
+      } catch {
+        // ignore
+      }
+    }
+    function onPointerMove(e: PointerEvent) {
+      continueStroke(e.clientX, e.clientY)
+    }
+    function onPointerUp() {
+      endStroke()
+    }
+    function onPointerLeave(e: PointerEvent) {
+      // setPointerCapture (above) exists specifically so this doesn't fire
+      // mid-stroke — but its hit-testing can be flaky for touch on iOS,
+      // briefly registering the finger as having "left" the canvas while
+      // it's still on it. Only trust this to end a stroke for mouse/pen,
+      // where the cursor genuinely leaving the canvas is meaningful; for
+      // touch, pointerup is the only reliable end-of-stroke signal.
+      if (e.pointerType === 'touch') return
+      endStroke()
+    }
 
-  function handleTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
-    if (readOnly || !active) return
-    e.preventDefault()
-    const touch = e.touches[0]
-    const canvas = canvasRef.current
-    if (!touch || !canvas) return
-    setHasContent(true)
-    drawing.current = true
-    const ctx = canvas.getContext('2d')
-    const pos = getPosFromClient(canvas, touch.clientX, touch.clientY)
-    ctx?.beginPath()
-    ctx?.moveTo(pos.x, pos.y)
-  }
+    function onTouchStart(e: TouchEvent) {
+      if (readOnlyRef.current || !activeRef.current) return
+      e.preventDefault()
+      const touch = e.touches[0]
+      if (touch) beginStroke(touch.clientX, touch.clientY)
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (readOnlyRef.current || !activeRef.current || !drawing.current) return
+      // iOS registers a plain touchmove listener as passive by default, so
+      // preventDefault() would silently do nothing without the explicit
+      // { passive: false } this listener is attached with below.
+      e.preventDefault()
+      const touch = e.touches[0]
+      if (touch) continueStroke(touch.clientX, touch.clientY)
+    }
+    function onTouchEnd() {
+      endStroke()
+    }
+
+    if (SUPPORTS_POINTER_EVENTS) {
+      canvas.addEventListener('pointerdown', onPointerDown)
+      canvas.addEventListener('pointermove', onPointerMove)
+      canvas.addEventListener('pointerup', onPointerUp)
+      canvas.addEventListener('pointerleave', onPointerLeave)
+      return () => {
+        canvas.removeEventListener('pointerdown', onPointerDown)
+        canvas.removeEventListener('pointermove', onPointerMove)
+        canvas.removeEventListener('pointerup', onPointerUp)
+        canvas.removeEventListener('pointerleave', onPointerLeave)
+      }
+    }
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
+    canvas.addEventListener('touchend', onTouchEnd)
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [])
 
   function handleClear() {
     if (readOnly) return
@@ -232,12 +260,6 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
         ref={canvasRef}
         width={600}
         height={200}
-        onPointerDown={SUPPORTS_POINTER_EVENTS ? handlePointerDown : undefined}
-        onPointerMove={SUPPORTS_POINTER_EVENTS ? handlePointerMove : undefined}
-        onPointerUp={SUPPORTS_POINTER_EVENTS ? finishStroke : undefined}
-        onPointerLeave={SUPPORTS_POINTER_EVENTS ? handlePointerLeave : undefined}
-        onTouchStart={SUPPORTS_POINTER_EVENTS ? undefined : handleTouchStart}
-        onTouchEnd={SUPPORTS_POINTER_EVENTS ? undefined : finishStroke}
         // iOS treats a touch-and-hold on any element as a possible text
         // selection / "Look Up" gesture unless explicitly told not to —
         // without this, iOS can show its selection callout instead of
