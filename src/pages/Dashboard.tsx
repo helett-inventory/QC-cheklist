@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useInspections } from '../hooks/useInspections'
 import { InspectionCard } from '../components/InspectionCard'
@@ -33,6 +33,14 @@ export function Dashboard() {
   const [query, setQuery] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('newest')
   const navigate = useNavigate()
+
+  // Always land at the top (the newest/first case under the default sort)
+  // whenever the Dashboard mounts — e.g. coming back here after saving a
+  // case — rather than wherever the browser's scroll restoration guesses
+  // (see the history.scrollRestoration override in App.tsx).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   const filtered = useMemo(() => {
     if (!query.trim()) return inspections
