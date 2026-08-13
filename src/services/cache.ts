@@ -27,3 +27,21 @@ export function writeCachedList(data: Inspection[]) {
 export function readCachedInspection(id: string): Inspection | null {
   return readCachedList()?.find((i) => i.id === id) ?? null
 }
+
+// Called right after a successful save so the device that just made the
+// change sees it instantly (e.g. the QC/IC/FC badges on the Dashboard),
+// without waiting on a network refetch — the record is already known, in
+// full, right here. Adds it if new (create) or replaces it if it already
+// exists (update); leaves ordering to whatever the next real fetch settles
+// on (this is just a same-session correctness patch, not a re-sort).
+export function upsertCachedInspection(inspection: Inspection) {
+  const current = readCachedList() ?? []
+  const idx = current.findIndex((i) => i.id === inspection.id)
+  if (idx === -1) {
+    writeCachedList([...current, inspection])
+  } else {
+    const next = [...current]
+    next[idx] = inspection
+    writeCachedList(next)
+  }
+}

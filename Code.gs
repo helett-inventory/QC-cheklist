@@ -91,10 +91,19 @@ function inspectionToRow_(insp) {
   })
 }
 
+// Looks up a row by id reading ONLY column A, not the full width of every
+// row (33 columns) like a naive getDataRange().getValues() scan would. Same
+// linear scan, but ~33x less data transferred/processed per call — this
+// runs on every 'get' and 'update', and per this app's real workflow a
+// single inspection gets updated 3+ times (Inventory creates it, QC signs
+// it, the manager gives final confirmation), so the saving comes back to
+// this lookup repeatedly across a record's lifetime.
 function findRowIndexById_(sheet, id) {
-  var data = sheet.getDataRange().getValues()
-  for (var r = 1; r < data.length; r++) {
-    if (data[r][0] === id) return r + 1 // 1-indexed sheet row
+  var lastRow = sheet.getLastRow()
+  if (lastRow < 2) return -1
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues()
+  for (var r = 0; r < ids.length; r++) {
+    if (ids[r][0] === id) return r + 2 // 1-indexed sheet row
   }
   return -1
 }

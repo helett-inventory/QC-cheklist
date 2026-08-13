@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Inspection, YesNo } from '../types/inspection'
 import { createInspection, getInspection, updateInspection } from '../services/api'
-import { readCachedInspection } from '../services/cache'
+import { readCachedInspection, upsertCachedInspection } from '../services/cache'
 import { SignaturePad } from '../components/SignaturePad'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { InspectionReport } from '../components/InspectionReport'
@@ -105,7 +105,10 @@ function Stepper({
         type="number"
         inputMode="numeric"
         disabled={disabled}
-        value={value}
+        // Show blank instead of "0" so the field starts empty and the user
+        // can just type a number into it, rather than having to delete a
+        // pre-filled 0 first. A cleared field is treated as 0 underneath.
+        value={value === 0 ? '' : value}
         onChange={(e) => {
           const n = parseInt(e.target.value, 10)
           onChange(isNaN(n) ? 0 : Math.max(0, n))
@@ -359,12 +362,17 @@ export function QCForm() {
     setSaving(true)
     try {
       const dataToSave: Inspection = { ...form, finalConfirmationBy: FINAL_CONFIRMATION_NAME }
+      let saved: Inspection | undefined
       if (isNew) {
         const { id: _id, timestamp: _ts, updatedAt: _u, ...rest } = dataToSave
-        await createInspection(rest)
+        saved = await createInspection(rest)
       } else if (id) {
-        await updateInspection(id, dataToSave)
+        saved = await updateInspection(id, dataToSave)
       }
+      // Update the Dashboard's cache with the full saved record right now,
+      // so the QC/IC/FC badges reflect this change the instant we land back
+      // there — no need to wait on the background refetch to catch up.
+      if (saved) upsertCachedInspection(saved)
       navigate('/')
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Failed to save inspection')
