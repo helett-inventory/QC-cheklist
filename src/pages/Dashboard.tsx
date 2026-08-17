@@ -4,13 +4,43 @@ import { useInspections } from '../hooks/useInspections'
 import { InspectionCard } from '../components/InspectionCard'
 import type { Inspection } from '../types/inspection'
 
-type SortMode = 'newest' | 'oldest' | 'open' | 'closed'
+type SortMode = 'newest' | 'oldest' | 'open' | 'closed' | 'qc' | 'ic' | 'fc'
 
 const SORT_LABELS: Record<SortMode, string> = {
   newest: 'Newest first',
   oldest: 'Oldest first',
   open: 'Open first',
-  closed: 'Closed first'
+  closed: 'Closed first',
+  qc: 'QC open first',
+  ic: 'IC open first',
+  fc: 'FC open first'
+}
+
+// The stage-completion field each of the three "___ open first" sort modes
+// groups by — same QC/IC/FC signature fields the Dashboard card badges
+// already derive from. "Open" here means that stage hasn't been signed yet.
+const STAGE_FIELD: Partial<Record<SortMode, keyof Inspection>> = {
+  qc: 'qcSignatureUrl',
+  ic: 'dispatchSignUrl',
+  fc: 'signatureUrl'
+}
+
+// Persisted separately from the inspections data cache (services/cache.ts)
+// — this is a UI preference, not inspection data, so it doesn't belong
+// inside that cache's schema. Same underlying mechanism (localStorage)
+// though, which is what actually keeps the chosen sort applied across the
+// Dashboard unmounting/remounting — e.g. navigating to a case, saving it,
+// and landing back here shouldn't silently reset back to "Newest first".
+const SORT_MODE_KEY = 'helett-qc-sort-mode'
+
+function loadSortMode(): SortMode {
+  try {
+    const saved = localStorage.getItem(SORT_MODE_KEY)
+    if (saved && saved in SORT_LABELS) return saved as SortMode
+  } catch {
+    // ignore
+  }
+  return 'newest'
 }
 
 function formatDateHeader(dateStr: string): string {
@@ -31,10 +61,19 @@ export function Dashboard() {
   const { inspections, loading, error, refetch } = useInspections()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [sortMode, setSortMode] = useState<SortMode>('newest')
+  const [sortMode, setSortModeState] = useState<SortMode>(loadSortMode)
   const navigate = useNavigate()
 
-  // Always land at the top (the newest/first case under the default sort)
+  function setSortMode(mode: SortMode) {
+    setSortModeState(mode)
+    try {
+      localStorage.setItem(SORT_MODE_KEY, mode)
+    } catch {
+      // ignore — sort just won't persist across visits, not worth failing over
+    }
+  }
+
+  // Always land at the top (the first case under whichever sort is active)
   // whenever the Dashboard mounts — e.g. coming back here after saving a
   // case — rather than wherever the browser's scroll restoration guesses
   // (see the history.scrollRestoration override in App.tsx).
@@ -52,29 +91,39 @@ export function Dashboard() {
   }, [inspections, query])
 
   const byStatus = sortMode === 'open' || sortMode === 'closed'
+  const stageField = STAGE_FIELD[sortMode]
+  const groupByRaw = byStatus || !!stageField
 
   const grouped = useMemo(() => {
     const groups = new Map<string, Inspection[]>()
     for (const insp of filtered) {
-      const key = byStatus ? insp.status : insp.dispatchDate || 'Unknown Date'
+      var key: string
+      if (stageField) {
+        key = insp[stageField] ? 'Done' : 'Pending'
+      } else if (byStatus) {
+        key = insp.status
+      } else {
+        key = insp.dispatchDate || 'Unknown Date'
+      }
       if (!groups.has(key)) groups.set(key, [])
       groups.get(key)!.push(insp)
     }
 
-    if (byStatus) {
-      // Sort each status group's cards by date (newest first) — status is
-      // the primary sort key here, date is just a sensible tiebreaker.
+    if (byStatus || stageField) {
+      // The grouping key is the primary sort key here (Open/Closed, or
+      // Pending/Done for a stage) — date is just a sensible tiebreaker
+      // within each group.
       for (const items of groups.values()) {
         items.sort((a, b) => (b.dispatchDate || '').localeCompare(a.dispatchDate || ''))
       }
-      const firstKey = sortMode === 'open' ? 'Open' : 'Closed'
+      const firstKey = stageField ? 'Pending' : sortMode === 'open' ? 'Open' : 'Closed'
       return [...groups.entries()].sort((a, b) => (a[0] === firstKey ? -1 : b[0] === firstKey ? 1 : 0))
     }
 
     return [...groups.entries()].sort((a, b) =>
       sortMode === 'newest' ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0])
     )
-  }, [filtered, sortMode, byStatus])
+  }, [filtered, sortMode, byStatus, stageField])
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
@@ -132,7 +181,7 @@ export function Dashboard() {
         {grouped.map(([key, items]) => (
           <div key={key}>
             <div className="sticky top-[56px] z-10 bg-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              {byStatus ? key : formatDateHeader(key)}
+              {groupByRaw ? key : formatDateHeader(key)}
             </div>
             <div>
               {items.map((insp) => (
