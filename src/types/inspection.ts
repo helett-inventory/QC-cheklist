@@ -36,6 +36,10 @@ export interface Inspection {
   signatureUrl: string
   status: 'Open' | 'Closed'
   updatedAt: string
+  // Decoded text from the QR/barcode scanner (src/components/BarcodeScanner.tsx).
+  // Column AH in the sheet — added after 'updatedAt' so no existing columns
+  // had to shift. Replaces the old disabled "Upload Photo" placeholder.
+  scannedCode: string
 }
 
 export type NewInspection = Omit<Inspection, 'id' | 'timestamp' | 'updatedAt'>

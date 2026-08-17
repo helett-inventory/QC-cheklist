@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { Inspection, YesNo } from '../types/inspection'
 import { createInspection, getInspection, updateInspection } from '../services/api'
@@ -7,6 +7,11 @@ import { SignaturePad } from '../components/SignaturePad'
 import { SearchableSelect } from '../components/SearchableSelect'
 import { InspectionReport } from '../components/InspectionReport'
 import { PRODUCTS } from '../data/products'
+
+// Neither the scanner component nor the @zxing/browser library it uses
+// (dynamically imported inside BarcodeScanner itself) load until a user
+// actually taps "Scan" — this keeps the initial app bundle unaffected.
+const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
 // To edit the names offered in the "Dispatch Confirmed By" dropdown, edit this list.
 const DISPATCH_NAMES = ['Amal Anilkumar', 'MHD Anas']
@@ -69,7 +74,8 @@ function emptyInspection(): Inspection {
     finalConfirmationBy: FINAL_CONFIRMATION_NAME,
     signatureUrl: '',
     status: 'Open',
-    updatedAt: ''
+    updatedAt: '',
+    scannedCode: ''
   }
 }
 
@@ -271,6 +277,7 @@ export function QCForm() {
   const [initialForm, setInitialForm] = useState<Inspection>(emptyInspection())
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [customInspectors, setCustomInspectors] = useState<string[]>(() => loadCustomInspectors())
 
@@ -511,19 +518,47 @@ export function QCForm() {
           <YesNoToggle value={form.properSealing} onChange={(v) => set('properSealing', v)} disabled={readOnly} />
         </Field>
 
-        <Field label="Full Photo">
-          <button
-            type="button"
-            disabled
-            className="min-h-[44px] px-4 rounded-md border border-gray-300 bg-gray-100 text-gray-400 flex items-center gap-2 text-sm"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Upload Photo (coming soon)
-          </button>
+        <Field label="Scanned Code">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              disabled={readOnly}
+              value={form.scannedCode}
+              onChange={(e) => set('scannedCode', e.target.value)}
+              placeholder="Scan or type a barcode / QR code"
+              className="flex-1 h-11 px-3 rounded-md border border-gray-300 text-sm disabled:bg-gray-100"
+            />
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => setScannerOpen(true)}
+                aria-label="Scan barcode or QR code"
+                className="w-11 h-11 shrink-0 rounded-md border border-gray-300 text-gray-600 flex items-center justify-center"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 7V5a1 1 0 011-1h2M4 17v2a1 1 0 001 1h2M20 7V5a1 1 0 00-1-1h-2M20 17v2a1 1 0 01-1 1h-2M4 12h16"
+                  />
+                </svg>
+              </button>
+            )}
+          </div>
         </Field>
+
+        {scannerOpen && (
+          <Suspense fallback={null}>
+            <BarcodeScanner
+              onScan={(value) => {
+                set('scannedCode', value)
+                setScannerOpen(false)
+              }}
+              onClose={() => setScannerOpen(false)}
+            />
+          </Suspense>
+        )}
 
         <Field label="FNSKU Present">
           <YesNoToggle value={form.fnskuPresent} onChange={(v) => set('fnskuPresent', v)} disabled={readOnly} />

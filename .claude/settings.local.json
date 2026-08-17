@@ -23,7 +23,8 @@
       "Bash(powershell -Command \"Stop-Process -Id 14312,8152 -Force\")",
       "Bash(powershell -Command \"Stop-Process -Id 16868,18056 -Force\")",
       "Bash(powershell -Command \"Stop-Process -Id 1308,8224 -Force\")",
-      "Bash(powershell -Command \"Stop-Process -Id 14564,5764 -Force\")"
+      "Bash(powershell -Command \"Stop-Process -Id 14564,5764 -Force\")",
+      "Bash(node -e ' *)"
     ]
   }
 }

@@ -131,7 +131,8 @@ export function seedIfEmpty() {
       finalConfirmationBy: 'Ravi Kumar',
       signatureUrl: '',
       status: 'Closed',
-      updatedAt: now
+      updatedAt: now,
+      scannedCode: ''
     },
     {
       id: genId(),
@@ -166,7 +167,8 @@ export function seedIfEmpty() {
       finalConfirmationBy: '',
       signatureUrl: '',
       status: 'Open',
-      updatedAt: now
+      updatedAt: now,
+      scannedCode: ''
     },
     {
       id: genId(),
@@ -201,7 +203,8 @@ export function seedIfEmpty() {
       finalConfirmationBy: 'Ravi Kumar',
       signatureUrl: '',
       status: 'Closed',
-      updatedAt: now
+      updatedAt: now,
+      scannedCode: ''
     }
   ]
   writeAll(demo)
