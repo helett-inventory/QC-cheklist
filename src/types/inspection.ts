@@ -19,7 +19,6 @@ export interface Inspection {
   labelBarcode: YesNo
   accessoriesIncluded: YesNo
   properSealing: YesNo
-  fullPhoto: YesNo
   fnskuPresent: YesNo
   mrpPresent: YesNo
   serialNumberPresent: YesNo
@@ -37,8 +36,8 @@ export interface Inspection {
   status: 'Open' | 'Closed'
   updatedAt: string
   // Decoded text from the QR/barcode scanner (src/components/BarcodeScanner.tsx).
-  // Column AH in the sheet — added after 'updatedAt' so no existing columns
-  // had to shift. Replaces the old disabled "Upload Photo" placeholder.
+  // Reuses column Q, which used to be 'fullPhoto' (the old disabled "Upload
+  // Photo" placeholder, never actually implemented) — same column, repointed.
   scannedCode: string
 }
 

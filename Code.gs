@@ -8,11 +8,15 @@
 
 var SHEET_NAME = 'Inspections'
 
+// Column Q used to be 'fullPhoto' (an unused Y/N placeholder tied to the old
+// disabled "Upload Photo" button). It's been repointed to 'scannedCode' —
+// same column, same position in this array, just holding the QR/barcode
+// scanner's decoded text now instead. No new column needed.
 var FIELDS = [
   'id', 'timestamp', 'inspectionDate', 'shipmentId', 'productName', 'sku',
   'receivedQty', 'qcQty', 'acceptedQty', 'rejectedQty', 'modelDispatched',
   'productCondition', 'packagingQuality', 'labelBarcode', 'accessoriesIncluded',
-  'properSealing', 'fullPhoto', 'fnskuPresent', 'mrpPresent',
+  'properSealing', 'scannedCode', 'fnskuPresent', 'mrpPresent',
   'serialNumberPresent', 'shippingLabelPresent', 'fullRemarks', 'overallResult',
   'qcRemarks', 'inspectorName', 'qcSignatureUrl', 'dispatchConfirmedBy',
   'dispatchDate', 'dispatchSignUrl', 'finalConfirmationBy', 'signatureUrl',

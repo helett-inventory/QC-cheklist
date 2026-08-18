@@ -58,7 +58,6 @@ function emptyInspection(): Inspection {
     labelBarcode: '',
     accessoriesIncluded: '',
     properSealing: '',
-    fullPhoto: 'N',
     fnskuPresent: '',
     mrpPresent: '',
     serialNumberPresent: '',

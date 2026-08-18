@@ -21,6 +21,22 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
 
     async function start() {
       try {
+        // getUserMedia only exists in a "secure context" — HTTPS, or literally
+        // localhost. Loaded over plain http:// (e.g. a phone hitting a dev
+        // server by LAN IP instead of a deployed https:// URL, which is NOT
+        // treated as secure even though localhost on that same machine
+        // would be), the whole API is simply undefined — camera access
+        // silently can't work at all, and it's worth telling the user that
+        // directly instead of a generic failure.
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setError(
+            window.isSecureContext
+              ? 'Camera access is not supported in this browser.'
+              : 'Camera access requires a secure (https://) connection. This page was loaded over an insecure connection.'
+          )
+          return
+        }
+
         const { BrowserMultiFormatReader } = await import('@zxing/browser')
         if (cancelled) return
         const reader = new BrowserMultiFormatReader()
@@ -39,13 +55,16 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
       } catch (err) {
         if (cancelled) return
         const name = err instanceof Error ? err.name : ''
-        setError(
-          name === 'NotAllowedError'
-            ? 'Camera permission was denied. Allow camera access in your browser/device settings to scan.'
-            : name === 'NotFoundError'
-              ? 'No camera was found on this device.'
-              : 'Could not access the camera. You can close this and enter the code manually.'
-        )
+        const message = err instanceof Error ? err.message : String(err)
+        if (name === 'NotAllowedError') {
+          setError('Camera permission was denied. Allow camera access in your browser/device settings to scan.')
+        } else if (name === 'NotFoundError') {
+          setError('No camera was found on this device.')
+        } else {
+          // Not a case we recognize yet — show the real error instead of a
+          // generic message, so it can actually be diagnosed.
+          setError(`Could not access the camera (${name || 'error'}: ${message}). You can close this and enter the code manually.`)
+        }
       }
     }
 

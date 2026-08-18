@@ -21,6 +21,7 @@ function getPosFromClient(canvas: HTMLCanvasElement, clientX: number, clientY: n
 }
 
 export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const loadedRef = useRef(false)
@@ -226,6 +227,24 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
     }
   }, [])
 
+  // Auto-collapse back to scroll-safe mode the moment the user taps or
+  // starts scrolling anywhere outside the pad — no need to explicitly hit
+  // "Done". Safe to do without an explicit confirm step: each completed
+  // stroke already calls onChange in endStroke() above the instant the
+  // finger lifts, so whatever's drawn is already saved into form state
+  // before any outside tap could even happen.
+  useEffect(() => {
+    if (!active) return
+    function handleOutside(e: Event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setActive(false)
+      }
+    }
+    const eventName = SUPPORTS_POINTER_EVENTS ? 'pointerdown' : 'touchstart'
+    document.addEventListener(eventName, handleOutside)
+    return () => document.removeEventListener(eventName, handleOutside)
+  }, [active])
+
   function handleClear() {
     if (readOnly) return
     const canvas = canvasRef.current
@@ -255,7 +274,7 @@ export function SignaturePad({ value, onChange, readOnly }: SignaturePadProps) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <canvas
         ref={canvasRef}
         width={600}
