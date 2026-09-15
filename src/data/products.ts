@@ -25,6 +25,7 @@ export const PRODUCTS: Product[] = [
   { name: 'H65C Mini Printer (New Blue)', asin: 'B0FZSJRV5F' },
   { name: 'H65C Mini Printer (New)', asin: 'B0FZSCW83R' },
   { name: 'H80i Autocut Thermal Printer', asin: 'B0CZ99K438' },
+  { name: 'H80i Bill Quick Neo', asin: 'B0HJTWN5N7' },
   { name: 'HE24 Labell Roll (12x50)', asin: 'B0FL2VFCT9' },
   { name: 'HE24 mini printer', asin: 'B0DDL3TR1L' },
   { name: 'Helett 4x6 Thermal Label', asin: 'B0DW8PCP6D' },
