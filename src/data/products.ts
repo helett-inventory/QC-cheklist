@@ -50,5 +50,6 @@ export const PRODUCTS: Product[] = [
   { name: 'H58i BillQuick Go', asin: 'B0H5X3VCM5' },
   { name: 'HLT552 Portable Monitor Pro', asin: 'B0H5R8L5LW' },
   { name: '2x1 Label Roll', asin: 'B0H6QGN526' },
-  { name: 'HT20 Lite Barcode', asin: 'B0F5Q4RV2R' }
+  { name: 'HT20 Lite Barcode', asin: 'B0F5Q4RV2R' },
+  { name: 'Helett Travel-Fi Neo', asin: 'B0HH3NH8G5' },
 ]
