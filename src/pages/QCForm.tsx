@@ -14,7 +14,7 @@ import { PRODUCTS } from '../data/products'
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
 // To edit the names offered in the "Dispatch Confirmed By" dropdown, edit this list.
-const DISPATCH_NAMES = ['Amal Anilkumar', 'MHD Anas']
+const DISPATCH_NAMES = ['Amal Anilkumar', 'MHD Anas', 'Sreejith']
 
 // To edit the names offered in the "Inspector Name" dropdown, edit this list.
 const INSPECTOR_NAMES = ['Suhail K', 'MHD Vasil', 'MHD Ziyad', 'MHD Shafi', 'Adarsh P', 'MHD Afras' ]
