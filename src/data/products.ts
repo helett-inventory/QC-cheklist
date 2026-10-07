@@ -13,7 +13,7 @@ export const PRODUCTS: Product[] = [
   { name: 'BT Sound bar', asin: 'B0CQM5THV3' },
   { name: 'H01 Label Holder', asin: 'B0D9T8R3W8' },
   { name: 'H30c lite printer', asin: 'B0DW8DX2M9' },
-  { name: 'H30c printer (New)', asin: 'B0CJVGCB4K' },
+  { name: 'H30c RapidLabel Neo', asin: 'B0CJVGCB4K' },
   { name: 'H30c printer(Old)', asin: 'B0FSSL1Q2X' },
   { name: 'H30C pro Aiyin', asin: 'B0FKZPDH66' },
   { name: 'H30c pro Aiyin (White)', asin: 'B0KUNKNOWN' },
